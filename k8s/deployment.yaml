@@ -1,0 +1,33 @@
+apiVersion: apps/v1beta1
+kind: Deployment
+metadata:
+  name: keygen
+spec:
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: keygen
+    spec:
+      containers:
+      - name: keygen
+        image: quay.io/gravitational/keygen:0.0.1
+        imagePullPolicy: Always
+        env:
+        - name: KEYGEN_CERT
+          value: "/var/lib/certs/cert"
+        - name: KEYGEN_KEY
+          value: "/var/lib/certs/key"
+        - name: KEYGEN_HOSTPORT
+          value: "0.0.0.0:8080"
+        ports:
+        - containerPort: 8080
+          name: keygen
+        volumeMounts:
+        - mountPath: /var/lib/certs
+          name: certs
+          readOnly: true
+      volumes:
+      - name: certs
+        secret:
+          secretName: certs
