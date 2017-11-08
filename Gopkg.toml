@@ -1,0 +1,52 @@
+
+# Gopkg.toml example
+#
+# Refer to https://github.com/golang/dep/blob/master/docs/Gopkg.toml.md
+# for detailed Gopkg.toml documentation.
+#
+# required = ["github.com/user/thing/cmd/thing"]
+# ignored = ["github.com/user/project/pkgX", "bitbucket.org/user/project/pkgA/pkgY"]
+#
+# [[constraint]]
+#   name = "github.com/user/project"
+#   version = "1.0.0"
+#
+# [[constraint]]
+#   name = "github.com/user/project2"
+#   branch = "dev"
+#   source = "github.com/myfork/project2"
+#
+# [[override]]
+#  name = "github.com/x/y"
+#  version = "2.4.0"
+
+ignored = ["github.com/Sirupsen/logrus"]
+
+[[constraint]]
+  name = "github.com/gravitational/kingpin"
+  branch = "master"
+
+[[constraint]]
+  name = "github.com/gravitational/teleport"
+  version = "2.3.5"
+
+[[constraint]]
+  name = "github.com/gravitational/trace"
+  version = "1.1.2"
+
+[[constraint]]
+  name = "github.com/julienschmidt/httprouter"
+  version = "1.1.0"
+
+[[constraint]]
+  branch = "master"
+  name = "golang.org/x/crypto"
+
+[[override]]
+  name = "github.com/russellhaering/gosaml2"
+  revision = "8908227c114abe0b63b1f0606abae72d11bf632a"
+
+[[override]]
+  name = "github.com/sirupsen/logrus"
+  source = "github.com/gravitational/logrus"
+  revision = "e340a662ee7a1b9e3f6675182abed99b892189d6"
