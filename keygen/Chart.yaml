@@ -1,0 +1,6 @@
+name: keygen
+version: 0.0.1
+description: SSH Cert parser
+keywords:
+  - SSH cert parser and other tools
+tillerVersion: ">=2.8.0"
