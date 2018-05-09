@@ -8,9 +8,15 @@ KEYGEN_VERSION ?= $(shell git describe --tags 2>/dev/null ||  git rev-parse HEAD
 KEYGEN_REPO = quay.io/gravitational/keygen
 BUILDBOX_TAG ?= golang:1.9.0-stretch
 
+.PHONY: all
+all:
+	mkdir -p build
+	go build -o build/keygen github.com/gravitational/keygen/tool/keygen
+
+
 # Build docker image
-.PHONY: build
-build: build-binary
+.PHONY: image
+image: build-binary
 	docker build \
            -t "$(KEYGEN_REPO):$(KEYGEN_VERSION)" .
 
@@ -23,14 +29,10 @@ build-binary:
 	docker run -v $(CWD)/build:/build -v $(CWD):/go/src/github.com/gravitational/keygen $(BUILDBOX_TAG) go build -o /build/keygen github.com/gravitational/keygen/tool/keygen
 
 # Publish docker image. User runs this has to have Quay write permission
-.PHONY: publishr
-publish:
+.PHONY: push
+push:
 	docker push $(KEYGEN_REPO):$(KEYGEN_VERSION)
 
 
-.PHONY: all
-all:
-	mkdir -p build
-	go build -o build/keygen github.com/gravitational/keygen/tool/keygen
 
 
