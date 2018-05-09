@@ -64,7 +64,7 @@
 
 [[projects]]
   name = "github.com/gravitational/teleport"
-  packages = [".","lib","lib/auth/native","lib/defaults","lib/httplib","lib/httplib/csrf","lib/limiter","lib/services","lib/utils","lib/utils/parse"]
+  packages = [".","lib","lib/auth/native","lib/defaults","lib/httplib","lib/httplib/csrf","lib/limiter","lib/services","lib/sshutils","lib/utils","lib/utils/parse"]
   revision = "bc8dba65488798341acec7e6b71d52eae1301dbd"
   version = "v2.3.5"
 
@@ -220,6 +220,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "50b5690836d8ca42c8b172d338ab5f0f56589723856b970fbdf598bf7de6e999"
+  inputs-digest = "c6782b421487bd656b26978a8310ad59a83bb182942533278fbe2600513502a9"
   solver-name = "gps-cdcl"
   solver-version = 1
