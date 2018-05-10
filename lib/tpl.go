@@ -7,7 +7,7 @@ import (
 const indexHTML = `<!DOCTYPE html>
 <html>
 <head>
-<title>Gravitational Certificate Parser</title>
+<title>Gravitational SSH Certificate Parser</title>
 <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.2.1/jquery.min.js"></script>
 <link rel="stylesheet" href="https://gravitational.com/gravitational/bundle.css" />
 <link href="https://gravitational.com/favicon.ico" rel="icon" type="image/x-icon">

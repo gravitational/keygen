@@ -105,7 +105,7 @@ func (a *APIServer) parseCert(w http.ResponseWriter, r *http.Request, p httprout
 
 	cert, ok := pubKey.(*ssh.Certificate)
 	if !ok {
-		return nil, trace.BadParameter("please paste a valid SSH certificate")
+		return nil, trace.BadParameter("please paste a valid SSH certificate, not a public SSH key")
 	}
 
 	buf := &bytes.Buffer{}
