@@ -43,7 +43,7 @@ label {
 <body class="grv-teleport">
 {{.Header}}
 <div class="container">
-  <div class="row">
+  <div>
     <form>
       <div class="form-group">
         <label for="cert">Paste SSH Certificate here</label>
@@ -53,7 +53,7 @@ label {
      <button type="submit" class="btn btn-primary">Parse SSH Certificate</button>
     </form>
   </div>
-  <div class="row">
+  <div>
     <label for="info">Certificate Info</label>
     <pre id="info" style="height:400px;"></pre>
   </div>
@@ -67,67 +67,6 @@ type templateParams struct {
 
 const headerHTML = `<nav id="top-nav" class="top-nav clearfix">
   <div class="top-nav-body">
-  <div class="top-nav-logo is-inverse">
-    <a href="https://gravitational.com"><img alt="Gravitational" src="https://gravitational.com/gravitational/images/logos/logo-gravitational-inverse.svg"></a>
-  </div>
-  <button id="top-nav-mobile-trigger" class="top-nav-mobile-trigger"><i class="material-icons">menu</i></button>
-  <ul id="top-nav-menu">    
-    <li>
-      <a class="top-nav-button has-dropdown is-hidden-mobile" href="#">Solutions</a>
-      <h4 class="top-nav-divider is-visible-mobile">Solutions</h4>
-      <div class="top-nav-dropdown-overlay is-hidden"></div>
-      <ul class="top-nav-dropdown is-hidden">        
-        <li class="top-nav-dropdown-arrow">
-          <span class="top-nav-dropdown-arrow-content"/>
-        </li>
-        <li class="top-nav-dropdown-item">
-          <a class="has-error" href="https://gravitational.com/solutions/private-saas/">
-            <strong>Private SaaS</strong>
-            <em>Deliver your SaaS offering to Enterprise Buyers on Private Clouds or On-Premise</em>
-          </a>
-        </li>
-        <li class="top-nav-dropdown-item">
-          <a class="has-error" href="https://gravitational.com/solutions/msp/">
-            <strong>Managed Services Providers</strong>
-            <em>Scale your Managed Services across your distributed customer base</em>
-          </a>
-        </li>
-        <li class="top-nav-dropdown-item">
-          <a class="has-error" href="https://gravitational.com/solutions/edge/">
-            <strong>Edge Computing Systems</strong>
-            <em>Unified access patterns and ops automation across edge computing systems</em>
-          </a>
-        </li>		
-      </ul>
-    </li>    
-	  
-    <li>
-      <a class="top-nav-button has-dropdown is-hidden-mobile" href="#">Products</a>
-      <h4 class="top-nav-divider is-visible-mobile">Products</h4>
-      <div class="top-nav-dropdown-overlay is-hidden"></div>
-      <ul class="top-nav-dropdown is-hidden">
-        <li class="top-nav-dropdown-arrow">
-          <span class="top-nav-dropdown-arrow-content"/>
-        </li>
-        <li class="top-nav-dropdown-item">
-          <a href="https://gravitational.com/teleport/">
-            <strong>Teleport</strong>
-            <em>Multi-Region SSH for Distributed Server Clusters</em>
-          </a>
-        </li>
-        <li class="top-nav-dropdown-item">
-          <a href="https://gravitational.com/telekube/">
-            <strong>Telekube</strong>
-            <em>Multi-Region Automation for Distributed Kubernetes Deployments</em>
-          </a>
-        </li>
-      </ul> 
-    </li>      
-    
-    <li class="top-nav-item-demo">
-      <a class="se" href="https://gravitational.com/demo/">Schedule a Demo</a>
-    </li>
-  </ul>
   </div>
 </nav>
 
