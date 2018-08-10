@@ -1,5 +1,5 @@
 name: keygen
-version: 0.0.1
+version: 0.0.4
 description: SSH Cert parser
 keywords:
   - SSH cert parser and other tools
