@@ -31,6 +31,7 @@ import (
 	"github.com/coreos/go-oidc/jose"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	log "github.com/sirupsen/logrus"
 )
 
 // OIDCConnector specifies configuration for Open ID Connect compatible external
@@ -46,7 +47,7 @@ type OIDCConnector interface {
 	// be visible to end user
 	GetClientSecret() string
 	// RedirectURL - Identity provider will use this URL to redirect
-	// client's browser back to it after successfull authentication
+	// client's browser back to it after successful authentication
 	// Should match the URL on Provider's side
 	GetRedirectURL() string
 	// GetACR returns the Authentication Context Class Reference (ACR) value.
@@ -63,8 +64,6 @@ type OIDCConnector interface {
 	GetClaims() []string
 	// MapClaims maps claims to roles
 	MapClaims(claims jose.Claims) []string
-	// RoleFromTemplate creates a role from a template and claims.
-	RoleFromTemplate(claims jose.Claims) (Role, error)
 	// Check checks OIDC connector for errors
 	Check() error
 	// CheckAndSetDefaults checks and set default values for any missing fields.
@@ -243,7 +242,7 @@ func (o *OIDCConnectorV2) SetExpiry(expires time.Time) {
 	o.Metadata.SetExpiry(expires)
 }
 
-// Expires retuns object expiry setting
+// Expires returns object expiry setting
 func (o *OIDCConnectorV2) Expiry() time.Time {
 	return o.Metadata.Expiry()
 }
@@ -320,7 +319,7 @@ func (o *OIDCConnectorV2) GetClientSecret() string {
 }
 
 // RedirectURL - Identity provider will use this URL to redirect
-// client's browser back to it after successfull authentication
+// client's browser back to it after successful authentication
 // Should match the URL on Provider's side
 func (o *OIDCConnectorV2) GetRedirectURL() string {
 	return o.Spec.RedirectURL
@@ -371,15 +370,28 @@ func (o *OIDCConnectorV2) MapClaims(claims jose.Claims) []string {
 			if claimName != mapping.Claim {
 				continue
 			}
+			var claimValues []string
 			claimValue, ok, _ := claims.StringClaim(claimName)
-			if ok && claimValue == mapping.Value {
-				roles = append(roles, mapping.Roles...)
-			}
-			claimValues, ok, _ := claims.StringsClaim(claimName)
 			if ok {
-				for _, claimValue := range claimValues {
-					if claimValue == mapping.Value {
-						roles = append(roles, mapping.Roles...)
+				claimValues = []string{claimValue}
+			} else {
+				claimValues, _, _ = claims.StringsClaim(claimName)
+			}
+		claimLoop:
+			for _, claimValue := range claimValues {
+				for _, role := range mapping.Roles {
+					outRole, err := utils.ReplaceRegexp(mapping.Value, role, claimValue)
+					switch {
+					case err != nil:
+						if trace.IsNotFound(err) {
+							log.Debugf("Failed to match expression %v, replace with: %v input: %v, err: %v", mapping.Value, role, claimValue, err)
+						}
+						// this claim value clearly did not match, move on to another
+						continue claimLoop
+						// skip empty replacement or empty role
+					case outRole == "":
+					case outRole != "":
+						roles = append(roles, outRole)
 					}
 				}
 			}
@@ -420,51 +432,6 @@ func executeSliceTemplate(raw []string, claims jose.Claims) ([]string, error) {
 	}
 
 	return sl, nil
-}
-
-// RoleFromTemplate creates a role from a template and claims.
-func (o *OIDCConnectorV2) RoleFromTemplate(claims jose.Claims) (Role, error) {
-	for _, mapping := range o.Spec.ClaimsToRoles {
-		for claimName := range claims {
-			// claim name doesn't match
-			if claimName != mapping.Claim {
-				continue
-			}
-
-			// claim value doesn't match
-			claimValue, ok, _ := claims.StringClaim(claimName)
-			if ok && claimValue != mapping.Value {
-				continue
-			}
-
-			// claim name and value match, if a role template exists, execute template
-			roleTemplate := mapping.RoleTemplate
-			if roleTemplate != nil {
-				// at the moment, only allow templating for role name and logins
-				executedName, err := executeStringTemplate(roleTemplate.GetName(), claims)
-				if err != nil {
-					return nil, trace.Wrap(err)
-				}
-				executedLogins, err := executeSliceTemplate(roleTemplate.GetLogins(), claims)
-				if err != nil {
-					return nil, trace.Wrap(err)
-				}
-
-				roleTemplate.SetName(executedName)
-				roleTemplate.SetLogins(executedLogins)
-
-				// check all fields and make sure we have have a valid role
-				err = roleTemplate.CheckAndSetDefaults()
-				if err != nil {
-					return nil, trace.Wrap(err)
-				}
-
-				return roleTemplate.V3(), nil
-			}
-		}
-	}
-
-	return nil, trace.BadParameter("no matching claim name/value, claims: %q", claims)
 }
 
 // Check returns nil if all parameters are great, err otherwise
@@ -545,7 +512,7 @@ type OIDCConnectorSpecV2 struct {
 	// be visible to end user
 	ClientSecret string `json:"client_secret"`
 	// RedirectURL - Identity provider will use this URL to redirect
-	// client's browser back to it after successfull authentication
+	// client's browser back to it after successful authentication
 	// Should match the URL on Provider's side
 	RedirectURL string `json:"redirect_url"`
 	// ACR is an Authentication Context Class Reference value. The meaning of the ACR
@@ -640,7 +607,7 @@ type OIDCConnectorV1 struct {
 	// be visible to end user
 	ClientSecret string `json:"client_secret"`
 	// RedirectURL - Identity provider will use this URL to redirect
-	// client's browser back to it after successfull authentication
+	// client's browser back to it after successful authentication
 	// Should match the URL on Provider's side
 	RedirectURL string `json:"redirect_url"`
 	// Display - Friendly name for this provider.

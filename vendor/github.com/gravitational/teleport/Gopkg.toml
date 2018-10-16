@@ -20,6 +20,13 @@
 #  name = "github.com/x/y"
 #  version = "2.4.0"
 
+[prune]
+  go-tests = true
+  unused-packages = true
+  non-go = true
+
+ignored = ["github.com/Sirupsen/logrus"]
+
 [[constraint]]
   name = "github.com/alecthomas/template"
   branch = "master"
@@ -34,7 +41,7 @@
 
 [[constraint]]
   name = "github.com/vulcand/predicate"
-  version = "v1.0.0"
+  version = "v1.1.0"
 
 [[constraint]]
   name = "github.com/docker/docker"
@@ -42,7 +49,7 @@
 
 [[constraint]]
   name = "github.com/aws/aws-sdk-go"
-  version = "1.5.13"
+  version = "1.12.17"
 
 [[constraint]]
   name = "github.com/boltdb/bolt"
@@ -77,11 +84,11 @@
   branch = "master"
 
 [[constraint]]
-  branch = "master"
   name = "github.com/gravitational/roundtrip"
+  revision = "6a87d116a90b9c4e73bedc19ebc9c17f1b43d826"
 
 [[constraint]]
-  branch = "master"
+  version = "0.0.1"
   name = "github.com/gravitational/ttlmap"
 
 [[constraint]]
@@ -126,9 +133,26 @@
 
 [[constraint]]
   name = "github.com/gravitational/trace"
-  version = "1.0.0"
+  version = "1.1.5"
 
 [[constraint]]
   name = "github.com/coreos/go-oidc"
   version = "0.0.1"
   source = "github.com/gravitational/go-oidc"
+
+[[override]]
+  name = "github.com/sirupsen/logrus"
+  source = "github.com/gravitational/logrus"
+  version = "1.0.0"
+
+[[constraint]]
+  name = "github.com/russellhaering/gosaml2"
+  revision = "8908227c114abe0b63b1f0606abae72d11bf632a"
+
+[[constraint]]
+  name = "github.com/gravitational/reporting"
+  version = "0.0.5"
+
+[[constraint]]
+  name = "github.com/gravitational/license"
+  version = "0.0.4"

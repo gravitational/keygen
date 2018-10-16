@@ -45,15 +45,18 @@ const (
 	// run behind an environment/firewall which only allows outgoing connections)
 	SSHProxyTunnelListenPort = 3024
 
-	// Default SSH port
-	SSHDefaultPort = 22
-
 	// When running as a "SSH Proxy" this port will be used to
 	// serve auth requests.
 	AuthListenPort = 3025
 
 	// Default DB to use for persisting state. Another options is "etcd"
 	BackendType = "bolt"
+
+	// BackendDir is a default backend subdirectory
+	BackendDir = "backend"
+
+	// BackendPath is a default backend path parameter
+	BackendPath = "path"
 
 	// Name of events bolt database file stored in DataDir
 	EventsBoltFile = "events.db"
@@ -67,13 +70,22 @@ const (
 	// CacheTTL is a default cache TTL for persistent node cache
 	CacheTTL = 20 * time.Hour
 
+	// RecentCacheTTL is a default cache TTL for recently accessed items
+	RecentCacheTTL = 2 * time.Second
+
 	// InviteTokenTTL sets the lifespan of tokens used for adding nodes and users
 	// to a cluster
 	InviteTokenTTL = 15 * time.Minute
 
 	// DefaultDialTimeout is a default TCP dial timeout we set for our
 	// connection attempts
-	DefaultDialTimeout = 10 * time.Second
+	DefaultDialTimeout = 30 * time.Second
+
+	// HTTPMaxIdleConns is the max idle connections across all hosts.
+	HTTPMaxIdleConns = 2000
+
+	// HTTPMaxIdleConnsPerHost is the max idle connections per-host.
+	HTTPMaxIdleConnsPerHost = 1000
 
 	// HTTPIdleTimeout is a default timeout for idle HTTP connections
 	HTTPIdleTimeout = 30 * time.Second
@@ -83,15 +95,22 @@ const (
 
 	// DefaultIdleConnectionDuration indicates for how long Teleport will hold
 	// the SSH connection open if there are no reads/writes happening over it.
-	DefaultIdleConnectionDuration = 20 * time.Minute
+	// 15 minutes default is compliant with PCI DSS standards
+	DefaultIdleConnectionDuration = 15 * time.Minute
 
-	// DefaultReadHeadersTimeout is a default TCP timeout when we wait
+	// ShutdownPollPeriod is a polling period for graceful shutdowns of SSH servers
+	ShutdownPollPeriod = 500 * time.Millisecond
+
+	// ReadHeadersTimeout is a default TCP timeout when we wait
 	// for the response headers to arrive
-	DefaultReadHeadersTimeout = time.Second
+	ReadHeadersTimeout = time.Second
+
+	// SignupTokenTTL is a default TTL for a web signup one time token
+	SignupTokenTTL = time.Hour
 
 	// MaxSignupTokenTTL is a maximum TTL for a web signup one time token
 	// clients can reduce this time, not increase it
-	MaxSignupTokenTTL = time.Hour
+	MaxSignupTokenTTL = 48 * time.Hour
 
 	// ProvisioningTokenTTL is a the default TTL for server provisioning
 	// tokens. When a user generates a token without an explicit TTL, this
@@ -117,6 +136,12 @@ const (
 	// MaxIterationLimit is max iteration limit
 	MaxIterationLimit = 1000
 
+	// EventsIterationLimit is a default limit if it's not set for events
+	EventsIterationLimit = 500
+
+	// EventsIterationLimit is max iteration limit for events
+	EventsMaxIterationLimit = 10000
+
 	// ActiveSessionTTL is a TTL when session is marked as inactive
 	ActiveSessionTTL = 30 * time.Second
 
@@ -129,8 +154,21 @@ const (
 	// SAMLAuthRequestTTL is TTL of internally stored auth request created by client
 	SAMLAuthRequestTTL = 10 * 60 * time.Second
 
+	// GithubAuthRequestTTL is TTL of internally stored Github auth request
+	GithubAuthRequestTTL = 10 * 60 * time.Second
+
+	// OAuth2TTL is the default TTL for objects created during OAuth 2.0 flow
+	// such as web sessions, certificates or dynamically created users
+	OAuth2TTL = 60 * 60 * time.Second // 1 hour
+
 	// LogRotationPeriod defines how frequently to rotate the audit log file
 	LogRotationPeriod = (time.Hour * 24)
+
+	// UploaderScanPeriod is a default uploader scan period
+	UploaderScanPeriod = 5 * time.Second
+
+	// UploaderConcurrentUploads is a default number of concurrent
+	UploaderConcurrentUploads = 10
 
 	// MaxLoginAttempts sets the max. number of allowed failed login attempts
 	// before a user account is locked for AccountLockInterval
@@ -145,11 +183,35 @@ const (
 
 	// AttemptTTL is TTL for login attempt
 	AttemptTTL = time.Minute * 30
+
+	// AuditLogSessions is the default expected amount of concurrent sessions
+	// supported by Audit logger, this number limits the possible
+	// amount of simultaneously processes concurrent sessions by the
+	// Audit log server, and 16K is OK for now
+	AuditLogSessions = 16384
+
+	// AccessPointCachedValues is the default maximum amount of cached values
+	// in access point
+	AccessPointCachedValues = 16384
+
+	// AuditLogTimeFormat is the format for the timestamp on audit log files.
+	AuditLogTimeFormat = "2006-01-02.15:04:05"
+
+	// PlaybackRecycleTTL is the TTL for unpacked session playback files
+	PlaybackRecycleTTL = 3 * time.Hour
+
+	// WaitCopyTimeout is how long Teleport will wait for a session to finish
+	// copying data from the PTY after "exit-status" has been received.
+	WaitCopyTimeout = 5 * time.Second
 )
 
 var (
 	// ReverseTunnelAgentHeartbeatPeriod is the period between agent heartbeat messages
 	ReverseTunnelAgentHeartbeatPeriod = 5 * time.Second
+
+	// ReverseTunnelOfflineThreshold is the threshold of missed heartbeats
+	// after which we are going to declare the reverse tunnel offline
+	ReverseTunnelOfflineThreshold = 5 * ReverseTunnelAgentHeartbeatPeriod
 
 	// ServerHeartbeatTTL is a period between heartbeats
 	// Median sleep time between node pings is this value / 2 + random
@@ -161,14 +223,38 @@ var (
 	// their stored list of auth servers
 	AuthServersRefreshPeriod = 30 * time.Second
 
-	// SessionRefreshPeriod is how often tsh polls information about session
-	// TODO(klizhentas) all polling periods should go away once backend
-	// releases events
+	// TerminalResizePeriod is how long tsh waits before updating the size of the
+	// terminal window.
+	TerminalResizePeriod = 2 * time.Second
+
+	// SessionRefreshPeriod is how often session data is updated on the backend.
+	// The web client polls this information about session to update the UI.
+	//
+	// TODO(klizhentas): All polling periods should go away once backend supports
+	// events.
 	SessionRefreshPeriod = 2 * time.Second
 
-	// TerminalSizeRefreshPeriod is how frequently clients who share sessions sync up
-	// their terminal sizes
-	TerminalSizeRefreshPeriod = 2 * time.Second
+	// SessionIdlePeriod is the period of inactivity after which the
+	// session will be considered idle
+	SessionIdlePeriod = SessionRefreshPeriod * 10
+
+	// NewtworkBackoffDuration is a standard backoff on network requests
+	// usually is slow, e.g. once in 30 seconds
+	NetworkBackoffDuration = time.Second * 30
+
+	// NewtworkRetryDuration is a standard retry on network requests
+	// to retry quickly, e.g. once in one second
+	NetworkRetryDuration = time.Second
+
+	// FastAttempts is the initial amount of fast retry attempts
+	// before switching to slow mode
+	FastAttempts = 10
+
+	// ReportingPeriod is a period for reports in logs
+	ReportingPeriod = 5 * time.Minute
+
+	// HighResPollingPeriod is a default high resolution polling period
+	HighResPollingPeriod = 10 * time.Second
 )
 
 // Default connection limits, they can be applied separately on any of the Teleport
@@ -182,6 +268,14 @@ const (
 )
 
 const (
+	// HostCertCacheSize is the number of host certificates to cache at any moment.
+	HostCertCacheSize = 4000
+
+	// HostCertCacheTime is how long a certificate stays in the cache.
+	HostCertCacheTime = 24 * time.Hour
+)
+
+const (
 	// MinCertDuration specifies minimum duration of validity of issued cert
 	MinCertDuration = time.Minute
 	// MaxCertDuration limits maximum duration of validity of issued cert
@@ -189,6 +283,10 @@ const (
 	// CertDuration is a default certificate duration
 	// 12 is default as it' longer than average working day (I hope so)
 	CertDuration = 12 * time.Hour
+	// RotationGracePeriod is a default rotation period for graceful
+	// certificate rotations, by default to set to maximum allowed user
+	// cert duration
+	RotationGracePeriod = MaxCertDuration
 )
 
 // list of roles teleport service can run as:
@@ -206,7 +304,7 @@ var (
 	// ConfigFilePath is default path to teleport config file
 	ConfigFilePath = "/etc/teleport.yaml"
 
-	// DataDir  is where all mutable data is stored (user keys, recorded sessions,
+	// DataDir is where all mutable data is stored (user keys, recorded sessions,
 	// registered SSH servers, etc):
 	DataDir = "/var/lib/teleport"
 
@@ -218,6 +316,18 @@ var (
 
 	// ConfigEnvar is a name of teleport's configuration environment variable
 	ConfigEnvar = "TELEPORT_CONFIG"
+
+	// LicenseFile is the default name of the license file
+	LicenseFile = "license.pem"
+
+	// CACertFile is the default name of the certificate authority file to watch
+	CACertFile = "ca.cert"
+)
+
+const (
+	// ServiceName is the default PAM policy to use if one is not passed in
+	// configuration.
+	ServiceName = "sshd"
 )
 
 const (
@@ -285,3 +395,32 @@ func makeAddr(host string, port int16) *utils.NetAddr {
 	}
 	return retval
 }
+
+const (
+	// RSABits is the default RSA bits for the private key
+	RSABits = 2048
+
+	// CATTL is a default lifetime of a CA certificate
+	CATTL = time.Hour * 24 * 365 * 10
+)
+
+const (
+	// AuditEnvelopeType is sending a audit event over the websocket to the web client.
+	AuditEnvelopeType = "a"
+
+	// RawEnvelopeType is sending raw terminal bytes over the websocket to the web
+	// client.
+	RawEnvelopeType = "r"
+
+	// ResizeRequestEnvelopeType is receiving a resize request.
+	ResizeRequestEnvelopeType = "r.r"
+)
+
+// The following are cryptographic primitives Teleport does not support in
+// it's default configuration.
+const (
+	DiffieHellmanGroup14SHA1 = "diffie-hellman-group14-sha1"
+	DiffieHellmanGroup1SHA1  = "diffie-hellman-group1-sha1"
+	HMACSHA1                 = "hmac-sha1"
+	HMACSHA196               = "hmac-sha1-96"
+)

@@ -38,6 +38,11 @@ type NetAddr struct {
 	Path string `json:"path,omitempty"`
 }
 
+// Equals returns true if address is equal to other
+func (a *NetAddr) Equals(other NetAddr) bool {
+	return a.Addr == other.Addr && a.AddrNetwork == other.AddrNetwork && a.Path == other.Path
+}
+
 // IsLocal returns true if this is a local address
 func (a *NetAddr) IsLocal() bool {
 	host, _, err := net.SplitHostPort(a.Addr)
@@ -124,6 +129,8 @@ func ParseAddr(a string) (*NetAddr, error) {
 		return &NetAddr{Addr: u.Host, AddrNetwork: u.Scheme, Path: u.Path}, nil
 	case "unix":
 		return &NetAddr{Addr: u.Path, AddrNetwork: u.Scheme}, nil
+	case "http", "https":
+		return &NetAddr{Addr: u.Host, AddrNetwork: u.Scheme, Path: u.Path}, nil
 	default:
 		return nil, trace.BadParameter("'%v': unsupported scheme: '%v'", a, u.Scheme)
 	}
@@ -136,6 +143,11 @@ func MustParseAddr(a string) *NetAddr {
 		panic(fmt.Sprintf("failed to parse %v: %v", a, err))
 	}
 	return addr
+}
+
+// FromAddr returns NetAddr from golang standard net.Addr
+func FromAddr(a net.Addr) NetAddr {
+	return NetAddr{AddrNetwork: a.Network(), Addr: a.String()}
 }
 
 // ParseHostPortAddr takes strings like "host:port" and returns

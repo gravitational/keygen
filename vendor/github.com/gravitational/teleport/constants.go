@@ -1,6 +1,7 @@
 package teleport
 
 import (
+	"strings"
 	"time"
 )
 
@@ -51,16 +52,21 @@ const (
 )
 
 const (
-	// Component indicates a component of teleport, used for logging
-	Component = "component"
+	// ComponentAuthority is a TLS and an SSH certificate authority
+	ComponentAuthority = "ca"
 
-	// ComponentFields stores component-specific fields
-	ComponentFields = "fields"
+	// ComponentProcess is a main control process
+	ComponentProcess = "proc"
 
-	// ComponentReverseTunnel is reverse tunnel agent and server
-	// that together establish a bi-directional SSH revers tunnel
+	// ComponentReverseTunnelServer is reverse tunnel server
+	// that together with agent establish a bi-directional SSH revers tunnel
 	// to bypass firewall restrictions
-	ComponentReverseTunnel = "reversetunnel"
+	ComponentReverseTunnelServer = "proxy:server"
+
+	// ComponentReverseTunnel is reverse tunnel agent
+	// that together with server establish a bi-directional SSH revers tunnel
+	// to bypass firewall restrictions
+	ComponentReverseTunnelAgent = "proxy:agent"
 
 	// ComponentAuth is the cluster CA node (auth server API)
 	ComponentAuth = "auth"
@@ -68,11 +74,64 @@ const (
 	// ComponentNode is SSH node (SSH server serving requests)
 	ComponentNode = "node"
 
+	// ComponentNode is SSH node (SSH server serving requests)
+	ComponentForwardingNode = "node:forward"
+
 	// ComponentProxy is SSH proxy (SSH server forwarding connections)
 	ComponentProxy = "proxy"
 
+	// ComponentDiagnostic is a diagnostic service
+	ComponentDiagnostic = "diag"
+
+	// ComponentClient is a client
+	ComponentClient = "client"
+
 	// ComponentTunClient is a tunnel client
-	ComponentTunClient = "tunclient"
+	ComponentTunClient = "client:tunnel"
+
+	// ComponentCachingClient is a caching auth client
+	ComponentCachingClient = "client:cache"
+
+	// ComponentSubsystemProxy is the proxy subsystem.
+	ComponentSubsystemProxy = "subsystem:proxy"
+
+	// ComponentLocalTerm is a terminal on a regular SSH node.
+	ComponentLocalTerm = "term:local"
+
+	// ComponentRemoteTerm is a terminal on a forwarding SSH node.
+	ComponentRemoteTerm = "term:remote"
+
+	// ComponentRemoteSubsystem is subsystem on a forwarding SSH node.
+	ComponentRemoteSubsystem = "subsystem:remote"
+
+	// ComponentAuditLog is audit log component
+	ComponentAuditLog = "audit"
+
+	// ComponentKeyAgent is an agent that has loaded the sessions keys and
+	// certificates for a user connected to a proxy.
+	ComponentKeyAgent = "keyagent"
+
+	// ComponentKeyStore is all sessions keys and certificates a user has on disk
+	// for all proxies.
+	ComponentKeyStore = "keystore"
+
+	// ComponentConnectProxy is the HTTP CONNECT proxy used to tunnel connection.
+	ComponentConnectProxy = "http:proxy"
+
+	// ComponentKeyGen is the public/private keypair generator.
+	ComponentKeyGen = "keygen"
+
+	// ComponentSession is an active session.
+	ComponentSession = "session"
+
+	// ComponentDynamoDB represents dynamodb clients
+	ComponentDynamoDB = "dynamodb"
+
+	// Component pluggable authentication module (PAM)
+	ComponentPAM = "pam"
+
+	// ComponentUpload is a session recording upload server
+	ComponentUpload = "upload"
 
 	// DebugEnvVar tells tests to use verbose debug output
 	DebugEnvVar = "DEBUG"
@@ -96,7 +155,10 @@ const (
 	ConnectorOIDC = "oidc"
 
 	// ConnectorSAML means connector type SAML
-	ConnectorSAML = "oidc"
+	ConnectorSAML = "saml"
+
+	// ConnectorGithub means connector type Github
+	ConnectorGithub = "github"
 
 	// DataDirParameterName is the name of the data dir configuration parameter passed
 	// to all backends during initialization
@@ -105,6 +167,10 @@ const (
 	// SSH request type to keep the connection alive. A client and a server keep
 	// pining each other with it:
 	KeepAliveReqType = "keepalive@openssh.com"
+
+	// RecordingProxyReqType is the name of a global request which returns if
+	// the proxy is recording sessions or not.
+	RecordingProxyReqType = "recording-proxy@teleport.com"
 
 	// OTP means One-time Password Algorithm for Two-Factor Authentication.
 	OTP = "otp"
@@ -124,15 +190,66 @@ const (
 	// Local means authentication will happen locally within the Teleport cluster.
 	Local = "local"
 
-	// OIDC means authentication will happen remotly using an OIDC connector.
-	OIDC = "oidc"
+	// OIDC means authentication will happen remotely using an OIDC connector.
+	OIDC = ConnectorOIDC
 
-	// SAML means authentication will happen remotly using an SAML connector.
-	SAML = "saml"
+	// SAML means authentication will happen remotely using a SAML connector.
+	SAML = ConnectorSAML
+
+	// Github means authentication will happen remotely using a Github connector.
+	Github = ConnectorGithub
 
 	// JSON means JSON serialization format
 	JSON = "json"
+
+	// LinuxAdminGID is the ID of the standard adm group on linux
+	LinuxAdminGID = 4
+
+	// LinuxOS is the name of the linux OS
+	LinuxOS = "linux"
+
+	// DirMaskSharedGroup is the mask for a directory accessible
+	// by the owner and group
+	DirMaskSharedGroup = 0770
+
+	// FileMaskOwnerOnly is the file mask that allows read write access
+	// to owers only
+	FileMaskOwnerOnly = 0600
+
+	// On means mode is on
+	On = "on"
+
+	// Off means mode is off
+	Off = "off"
+
+	// SchemeS3 is S3 file scheme, means upload or download to S3 like object
+	// storage
+	SchemeS3 = "s3"
+
+	// SchemeFile is a local disk file storage
+	SchemeFile = "file"
+
+	// LogsDir is a log subdirectory for events and logs
+	LogsDir = "log"
+
+	// Syslog is a mode for syslog logging
+	Syslog = "syslog"
+
+	// HumanDateFormat is a human readable date formatting
+	HumanDateFormat = "Jan _2 15:04 UTC"
+
+	// HumanDateFormatSeconds is a human readable date formatting with seconds
+	HumanDateFormatSeconds = "Jan _2 15:04:05 UTC"
+
+	// HumanDateFormatMilli is a human readable date formatting with milliseconds
+	HumanDateFormatMilli = "Jan _2 15:04:05.000 UTC"
 )
+
+// Component generates "component:subcomponent1:subcomponent2" strings used
+// in debugging
+func Component(components ...string) string {
+	return strings.Join(components, ":")
+}
 
 const (
 	// AuthorizedKeys are public keys that check against User CAs.
@@ -171,13 +288,20 @@ const (
 const MaxEnvironmentFileLines = 1000
 
 const (
-	// CompatibilityOldSSH is used to make Teleport interoperate with older
+	// CertificateFormatOldSSH is used to make Teleport interoperate with older
 	// versions of OpenSSH.
-	CompatibilityOldSSH = "oldssh"
+	CertificateFormatOldSSH = "oldssh"
 
-	// CompatibilityNone is used for normal Teleport operation without any
+	// CertificateFormatStandard is used for normal Teleport operation without any
 	// compatibility modes.
-	CompatibilityNone = ""
+	CertificateFormatStandard = "standard"
+
+	// CertificateFormatUnspecified is used to check if the format was specified
+	// or not.
+	CertificateFormatUnspecified = ""
+
+	// DurationNever is human friendly shortcut that is interpreted as a Duration of 0
+	DurationNever = "never"
 )
 
 const (
@@ -194,6 +318,9 @@ const (
 	TraitInternalRoleVariable = "{{internal.logins}}"
 )
 
+// SCP is Secure Copy.
+const SCP = "scp"
+
 // Root is *nix system administrator account name.
 const Root = "root"
 
@@ -205,12 +332,25 @@ const AdminRoleName = "admin"
 // objects.
 const DefaultImplicitRole = "default-implicit-role"
 
-// DistroType allows to declare what kind of distribution of Teleport
-// is running
-type DistroType string
+// APIDomain is a default domain name for Auth server API
+const APIDomain = "teleport.cluster.local"
 
-// Possible values for DistroType:
 const (
-	DistroTypeOSS        DistroType = "community"
-	DistroTypeEnterprise DistroType = "enterprise"
+	// RemoteClusterStatusOffline indicates that cluster is considered as
+	// offline, since it has missed a series of heartbeats
+	RemoteClusterStatusOffline = "offline"
+	// RemoteClusterStatusOnline indicates that cluster is sending heartbeats
+	// at expected interval
+	RemoteClusterStatusOnline = "online"
+)
+
+const (
+	// SharedDirMode is a mode for a directory shared with group
+	SharedDirMode = 0750
+)
+
+const (
+	// SessionEvent is sent by servers to clients when an audit event occurs on
+	// the session.
+	SessionEvent = "x-teleport-event"
 )
