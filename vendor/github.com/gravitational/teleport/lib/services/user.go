@@ -18,10 +18,12 @@ import (
 type User interface {
 	// Resource provides common resource properties
 	Resource
-	// GetOIDCIdentities returns a list of connected OIDCIdentities
+	// GetOIDCIdentities returns a list of connected OIDC identities
 	GetOIDCIdentities() []ExternalIdentity
-	// GetSAMLIdentities returns a list of connected OIDCIdentities
+	// GetSAMLIdentities returns a list of connected SAML identities
 	GetSAMLIdentities() []ExternalIdentity
+	// GetGithubIdentities returns a list of connected Github identities
+	GetGithubIdentities() []ExternalIdentity
 	// GetRoles returns a list of roles assigned to user
 	GetRoles() []string
 	// String returns user
@@ -80,7 +82,13 @@ type ConnectorRef struct {
 	Identity string `json:"identity"`
 }
 
-// UserRef holds refernce to user
+// IsSameProvider returns true if the provided connector has the
+// same ID/type as this one
+func (r *ConnectorRef) IsSameProvider(other *ConnectorRef) bool {
+	return other != nil && other.Type == r.Type && other.ID == r.ID
+}
+
+// UserRef holds references to user
 type UserRef struct {
 	// Name is name of the user
 	Name string `json:"name"`
@@ -151,18 +159,18 @@ const LoginStatusSchema = `{
   "type": "object",
   "additionalProperties": false,
   "properties": {
-     "is_locked": {"type": "boolean"}, 
+     "is_locked": {"type": "boolean"},
      "locked_message": {"type": "string"},
      "locked_time": {"type": "string"},
      "lock_expires": {"type": "string"}
    }
 }`
 
-// LoginAttempt represents successfull or unsuccessful attempt for user to login
+// LoginAttempt represents successful or unsuccessful attempt for user to login
 type LoginAttempt struct {
 	// Time is time of the attempt
 	Time time.Time `json:"time"`
-	// Sucess indicates whether attempt was successfull
+	// Success indicates whether attempt was successful
 	Success bool `json:"bool"`
 }
 
@@ -255,6 +263,10 @@ type UserSpecV2 struct {
 	// that let user log in using externally verified identity
 	SAMLIdentities []ExternalIdentity `json:"saml_identities,omitempty"`
 
+	// GithubIdentities list associated Github OAuth2 identities
+	// that let user log in using externally verified identity
+	GithubIdentities []ExternalIdentity `json:"github_identities,omitempty"`
+
 	// Roles is a list of roles assigned to user
 	Roles []string `json:"roles,omitempty"`
 
@@ -303,8 +315,14 @@ const UserSpecV2SchemaTemplate = `{
     },
     "traits": {
       "type": "object",
+      "additionalProperties": false,
       "patternProperties": {
-        "^[a-zA-Z/.0-9_]$":  { "type": "array", "items": {"type": "string"} }
+        "^[a-zA-Z/.0-9_:]+$": {
+          "type": ["array", "null"],
+          "items": {
+            "type": "string"
+          }
+        }
       }
     },
     "oidc_identities": {
@@ -312,6 +330,10 @@ const UserSpecV2SchemaTemplate = `{
       "items": %v
     },
     "saml_identities": {
+      "type": "array",
+      "items": %v
+    },
+    "github_identities": {
       "type": "array",
       "items": %v
     },
@@ -358,6 +380,15 @@ func (u *UserV2) Equals(other User) bool {
 			return false
 		}
 	}
+	otherGithubIdentities := other.GetGithubIdentities()
+	if len(u.Spec.GithubIdentities) != len(otherGithubIdentities) {
+		return false
+	}
+	for i := range u.Spec.GithubIdentities {
+		if !u.Spec.GithubIdentities[i].Equals(&otherGithubIdentities[i]) {
+			return false
+		}
+	}
 	return true
 }
 
@@ -382,14 +413,19 @@ func (u *UserV2) GetStatus() LoginStatus {
 	return u.Spec.Status
 }
 
-// GetOIDCIdentities returns a list of connected OIDCIdentities
+// GetOIDCIdentities returns a list of connected OIDC identities
 func (u *UserV2) GetOIDCIdentities() []ExternalIdentity {
 	return u.Spec.OIDCIdentities
 }
 
-// GetSAMLIdentities returns a list of connected SAMLIdentities
+// GetSAMLIdentities returns a list of connected SAML identities
 func (u *UserV2) GetSAMLIdentities() []ExternalIdentity {
 	return u.Spec.SAMLIdentities
+}
+
+// GetGithubIdentities returns a list of connected Github identities
+func (u *UserV2) GetGithubIdentities() []ExternalIdentity {
+	return u.Spec.GithubIdentities
 }
 
 // GetRoles returns a list of roles assigned to user
@@ -543,9 +579,9 @@ type UserMarshaler interface {
 func GetUserSchema(extensionSchema string) string {
 	var userSchema string
 	if extensionSchema == "" {
-		userSchema = fmt.Sprintf(UserSpecV2SchemaTemplate, ExternalIdentitySchema, ExternalIdentitySchema, LoginStatusSchema, CreatedBySchema, ``)
+		userSchema = fmt.Sprintf(UserSpecV2SchemaTemplate, ExternalIdentitySchema, ExternalIdentitySchema, ExternalIdentitySchema, LoginStatusSchema, CreatedBySchema, ``)
 	} else {
-		userSchema = fmt.Sprintf(UserSpecV2SchemaTemplate, ExternalIdentitySchema, ExternalIdentitySchema, LoginStatusSchema, CreatedBySchema, ", "+extensionSchema)
+		userSchema = fmt.Sprintf(UserSpecV2SchemaTemplate, ExternalIdentitySchema, ExternalIdentitySchema, ExternalIdentitySchema, LoginStatusSchema, CreatedBySchema, ", "+extensionSchema)
 	}
 	return fmt.Sprintf(V2SchemaTemplate, MetadataSchema, userSchema, DefaultDefinitions)
 }

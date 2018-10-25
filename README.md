@@ -2,30 +2,14 @@
 
 OSS tool for easy SSH key generation
 
-### Development Guide
-
-
-#### Cluster Access
-Login into cluster:
-
-```bash
-az aks get-credentials --resource-group keygen --name keygen
-```
-
-#### Bulding and publishing
-
-To build and publish container:
-
-(you need to login with quay.io to do that)
+## To generate a new certificate
 
 ```
-KEYGEN_VERSION=0.0.1 make build publish
+$ ./keygen new
 ```
 
-Trigger redeploy:
+## To parse certificate
 
-```bash
-./k8s/redeploy.sh
-```
+Go to https://gravitational.com/resources/ssh-certificate-parser/
 
-
+and past your certificate into provided form.

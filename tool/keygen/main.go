@@ -1,10 +1,10 @@
 package main
 
 import (
+	"bytes"
+	"encoding/base64"
 	"fmt"
 	"os"
-
-	"github.com/gravitational/keygen/lib"
 
 	"github.com/gravitational/kingpin"
 	"github.com/gravitational/teleport/lib/auth/native"
@@ -28,11 +28,6 @@ func run() error {
 	cnewComment := cnew.Flag("comment", "comment to add to the key").String()
 	cnewPassphrase := cnew.Flag("pass", "optional passphrase to protect the private key").String()
 
-	cserve := app.Command("serve", "Start keygen server")
-	cserveHostPort := cserve.Flag("hostport", "hostport to serve on").Default("127.0.0.1:8080").OverrideDefaultFromEnvar("KEYGEN_HOSTPORT").String()
-	cserveCert := cserve.Flag("certPath", "path to cert").OverrideDefaultFromEnvar("KEYGEN_CERT").String()
-	cserveKey := cserve.Flag("keyPath", "path to key").OverrideDefaultFromEnvar("KEYGEN_KEY").String()
-
 	cmd, err := app.Parse(os.Args[1:])
 	if err != nil {
 		return trace.Wrap(err)
@@ -43,8 +38,6 @@ func run() error {
 	switch cmd {
 	case cnew.FullCommand():
 		return newKey(*cnewComment, *cnewPassphrase)
-	case cserve.FullCommand():
-		return lib.Serve(*cserveCert, *cserveKey, *cserveHostPort)
 	default:
 		return trace.BadParameter("unsupported command: %v", cmd)
 	}
@@ -61,11 +54,27 @@ func newKey(comment string, passphrase string) error {
 		return trace.Wrap(err)
 	}
 
-	pub = lib.MarshalAuthorizedKey(pubKey, comment)
+	pub = marshalAuthorizedKey(pubKey, comment)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
 	fmt.Printf("%v", string(pub))
 	return nil
+}
+
+// marshalAuthorizedKey serializes key for inclusion in an OpenSSH
+// authorized_keys file. The return value ends with newline.
+func marshalAuthorizedKey(key ssh.PublicKey, comment string) []byte {
+	b := &bytes.Buffer{}
+	b.WriteString(key.Type())
+	b.WriteByte(' ')
+	e := base64.NewEncoder(base64.StdEncoding, b)
+	e.Write(key.Marshal())
+	e.Close()
+	if comment != "" {
+		b.WriteString(" " + comment)
+	}
+	b.WriteByte('\n')
+	return b.Bytes()
 }

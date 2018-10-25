@@ -36,12 +36,12 @@ chart:
 	helm package keygen --version=$(KEYGEN_VERSION) -d $(BUILDDIR)
 
 # install-chart
-.PHONY: 
+.PHONY:
 install-chart:
 	helm install keygen --version=$(KEYGEN_VERSION) -n keygen
 
 # upgrade chart
-.PHONY: 
+.PHONY:
 upgrade-chart:
 	helm upgrade keygen keygen --version=$(KEYGEN_VERSION)
 

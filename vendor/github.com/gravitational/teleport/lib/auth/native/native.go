@@ -13,16 +13,19 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
+
 package native
 
 import (
+	"context"
 	"crypto/rand"
 	"crypto/rsa"
 	"crypto/x509"
 	"encoding/pem"
 	"fmt"
-	"sync"
 	"time"
+
+	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -30,72 +33,91 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/trace"
-	log "github.com/sirupsen/logrus"
-	"golang.org/x/crypto/ssh"
+
+	"github.com/sirupsen/logrus"
 )
 
-var (
-	// this global configures how many pre-caluclated keypairs to keep in the
-	// background (perform key genreation in a separate goroutine, useful for
-	// web sesssion for snappy UI)
-	PrecalculatedKeysNum = 10
+var log = logrus.WithFields(logrus.Fields{
+	trace.Component: teleport.ComponentKeyGen,
+})
 
-	// only one global copy of 'nauth' exists
-	singleton nauth = nauth{
-		closeC: make(chan bool),
-	}
-)
+// PrecomputedNum is the number of keys to precompute and keep cached.
+var PrecomputedNum = 25
 
 type keyPair struct {
 	privPem  []byte
 	pubBytes []byte
 }
 
-type nauth struct {
-	generatedKeysC chan keyPair
-	closeC         chan bool
-	mutex          sync.Mutex
+// keygen is a key generator that precomputes keys to provide quick access to
+// public/private key pairs.
+type Keygen struct {
+	keysCh chan keyPair
+
+	ctx             context.Context
+	cancel          context.CancelFunc
+	precomputeCount int
 }
 
-// New returns a pointer to a key generator for production purposes
-func New() *nauth {
-	singleton.mutex.Lock()
-	defer singleton.mutex.Unlock()
+// KeygenOption is a functional optional argument for key generator
+type KeygenOption func(k *Keygen) error
 
-	if singleton.generatedKeysC == nil && PrecalculatedKeysNum > 0 {
-		singleton.generatedKeysC = make(chan keyPair, PrecalculatedKeysNum)
-		go singleton.precalculateKeys()
+// PrecomputeKeys sets up a number of private keys to pre-compute
+// in background, 0 disables the process
+func PrecomputeKeys(count int) KeygenOption {
+	return func(k *Keygen) error {
+		k.precomputeCount = count
+		return nil
 	}
-	return &singleton
 }
 
-// Close() closes and re-sets the key generator (better to call it only once,
-// when the process is stopping, to avoid costly re-initialization)
-func (n *nauth) Close() {
-	n.mutex.Lock()
-	defer n.mutex.Unlock()
+// New returns a new key generator.
+func New(opts ...KeygenOption) (*Keygen, error) {
+	ctx, cancel := context.WithCancel(context.Background())
 
-	close(n.closeC)
-	n.generatedKeysC = nil
-	n.closeC = make(chan bool)
+	k := &Keygen{
+		ctx:             ctx,
+		cancel:          cancel,
+		precomputeCount: PrecomputedNum,
+	}
+	for _, opt := range opts {
+		if err := opt(k); err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
+	if k.precomputeCount > 0 {
+		log.Debugf("SSH cert authority is going to pre-compute %v keys.", k.precomputeCount)
+		k.keysCh = make(chan keyPair, k.precomputeCount)
+		go k.precomputeKeys()
+	} else {
+		log.Debugf("SSH cert authority started with no keys pre-compute.")
+	}
+
+	return k, nil
 }
 
-// GetNewKeyPairFromPool returns pre-generated keypair from a channel, which
-// gets replenished by `precalculateKeys` goroutine
-func (n *nauth) GetNewKeyPairFromPool() ([]byte, []byte, error) {
+// Close stops the precomputation of keys (if enabled) and releases all resources.
+func (k *Keygen) Close() {
+	k.cancel()
+}
+
+// GetNewKeyPairFromPool returns precomputed key pair from the pool.
+func (k *Keygen) GetNewKeyPairFromPool() ([]byte, []byte, error) {
 	select {
-	case key := <-n.generatedKeysC:
+	case key := <-k.keysCh:
 		return key.privPem, key.pubBytes, nil
 	default:
-		return n.GenerateKeyPair("")
+		return GenerateKeyPair("")
 	}
 }
 
-func (n *nauth) precalculateKeys() {
+// precomputeKeys continues loops forever trying to compute cache key pairs.
+func (k *Keygen) precomputeKeys() {
 	for {
-		privPem, pubBytes, err := n.GenerateKeyPair("")
+		privPem, pubBytes, err := GenerateKeyPair("")
 		if err != nil {
-			log.Errorf(err.Error())
+			log.Errorf("Unable to generate key pair: %v.", err)
 			continue
 		}
 		key := keyPair{
@@ -104,17 +126,18 @@ func (n *nauth) precalculateKeys() {
 		}
 
 		select {
-		case <-n.closeC:
-			log.Infof("[KEYS] precalculateKeys() exited")
+		case <-k.ctx.Done():
+			log.Infof("Stopping key precomputation routine.")
 			return
-		case n.generatedKeysC <- key:
+		case k.keysCh <- key:
 			continue
 		}
 	}
 }
 
-// GenerateKeyPair returns fresh priv/pub keypair, takes about 300ms to execute
-func (n *nauth) GenerateKeyPair(passphrase string) ([]byte, []byte, error) {
+// GenerateKeyPair returns fresh priv/pub keypair, takes about 300ms to
+// execute.
+func GenerateKeyPair(passphrase string) ([]byte, []byte, error) {
 	priv, err := rsa.GenerateKey(rand.Reader, 2048)
 	if err != nil {
 		return nil, nil, err
@@ -135,7 +158,15 @@ func (n *nauth) GenerateKeyPair(passphrase string) ([]byte, []byte, error) {
 	return privPem, pubBytes, nil
 }
 
-func (n *nauth) GenerateHostCert(c services.HostCertParams) ([]byte, error) {
+// GenerateKeyPair returns fresh priv/pub keypair, takes about 300ms to
+// execute.
+func (k *Keygen) GenerateKeyPair(passphrase string) ([]byte, []byte, error) {
+	return GenerateKeyPair(passphrase)
+}
+
+// GenerateHostCert generates a host certificate with the passed in parameters.
+// The private key of the CA to sign the certificate must be provided.
+func (k *Keygen) GenerateHostCert(c services.HostCertParams) ([]byte, error) {
 	if err := c.Check(); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -150,7 +181,14 @@ func (n *nauth) GenerateHostCert(c services.HostCertParams) ([]byte, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	principals := buildPrincipals(c.HostID, c.NodeName, c.ClusterName, c.Roles)
+	// build a valid list of principals from the HostID and NodeName and then
+	// add in any additional principals passed in.
+	principals := BuildPrincipals(c.HostID, c.NodeName, c.ClusterName, c.Roles)
+	principals = append(principals, c.Principals...)
+	if len(principals) == 0 {
+		return nil, trace.BadParameter("no principals provided: %v, %v, %v",
+			c.HostID, c.NodeName, c.Principals)
+	}
 
 	// create certificate
 	validBefore := uint64(ssh.CertTimeInfinity)
@@ -176,7 +214,9 @@ func (n *nauth) GenerateHostCert(c services.HostCertParams) ([]byte, error) {
 	return ssh.MarshalAuthorizedKey(cert), nil
 }
 
-func (n *nauth) GenerateUserCert(c services.UserCertParams) ([]byte, error) {
+// GenerateUserCert generates a host certificate with the passed in parameters.
+// The private key of the CA to sign the certificate must be provided.
+func (k *Keygen) GenerateUserCert(c services.UserCertParams) ([]byte, error) {
 	if c.TTL < defaults.MinCertDuration {
 		return nil, trace.BadParameter("wrong certificate TTL")
 	}
@@ -208,11 +248,15 @@ func (n *nauth) GenerateUserCert(c services.UserCertParams) ([]byte, error) {
 	if c.PermitAgentForwarding {
 		cert.Permissions.Extensions[teleport.CertExtensionPermitAgentForwarding] = ""
 	}
+	if !c.PermitPortForwarding {
+		delete(cert.Permissions.Extensions, teleport.CertExtensionPermitPortForwarding)
+	}
 	if len(c.Roles) != 0 {
-		// if we are requesting a certificate with support for older versions of OpenSSH
-		// don't add roles to certificate extensions, due to a bug in <= OpenSSH 7.1
+		// only add roles to the certificate extensions if the standard format was
+		// requested. we allow the option to omit this to support older versions of
+		// OpenSSH due to a bug in <= OpenSSH 7.1
 		// https://bugzilla.mindrot.org/show_bug.cgi?id=2387
-		if c.Compatibility != teleport.CompatibilityOldSSH {
+		if c.CertificateFormat == teleport.CertificateFormatStandard {
 			roles, err := services.MarshalCertRoles(c.Roles)
 			if err != nil {
 				return nil, trace.Wrap(err)
@@ -230,16 +274,21 @@ func (n *nauth) GenerateUserCert(c services.UserCertParams) ([]byte, error) {
 	return ssh.MarshalAuthorizedKey(cert), nil
 }
 
-// buildPrincipals takes a hostID, nodeName, clusterName, and role and builds a list of
+// BuildPrincipals takes a hostID, nodeName, clusterName, and role and builds a list of
 // principals to insert into a certificate. This function is backward compatible with
 // older clients which means:
 //    * If RoleAdmin is in the list of roles, only a single principal is returned: hostID
 //    * If nodename is empty, it is not included in the list of principals.
-func buildPrincipals(hostID string, nodeName string, clusterName string, roles teleport.Roles) []string {
+func BuildPrincipals(hostID string, nodeName string, clusterName string, roles teleport.Roles) []string {
 	// TODO(russjones): This should probably be clusterName, but we need to
 	// verify changing this won't break older clients.
 	if roles.Include(teleport.RoleAdmin) {
 		return []string{hostID}
+	}
+
+	// if no hostID was passed it, the user might be specifying an exact list of principals
+	if hostID == "" {
+		return []string{}
 	}
 
 	// always include the hostID, this is what teleport uses internally to find nodes

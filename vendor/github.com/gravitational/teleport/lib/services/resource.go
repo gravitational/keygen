@@ -65,11 +65,17 @@ const (
 	// KindSAML is SAML connector resource
 	KindSAML = "saml"
 
-	// KindOIDCRequest is oidc auth request resource
+	// KindGithub is Github connector resource
+	KindGithub = "github"
+
+	// KindOIDCRequest is OIDC auth request resource
 	KindOIDCRequest = "oidc_request"
 
-	// KindOIDCReques is saml auth request resource
+	// KindSAMLRequest is SAML auth request resource
 	KindSAMLRequest = "saml_request"
+
+	// KindGithubRequest is Github auth request resource
+	KindGithubRequest = "github_request"
 
 	// KindSession is a recorded SSH session.
 	KindSession = "session"
@@ -107,11 +113,20 @@ const (
 	// KindSAMLConnector is a SAML connector resource
 	KindSAMLConnector = "saml"
 
+	// KindGithubConnector is Github OAuth2 connector resource
+	KindGithubConnector = "github"
+
 	// KindAuthPreference is the type of authentication for this cluster.
 	KindClusterAuthPreference = "cluster_auth_preference"
 
 	// KindAuthPreference is the type of authentication for this cluster.
 	MetaNameClusterAuthPreference = "cluster-auth-preference"
+
+	// KindClusterConfig is the resource that holds cluster level configuration.
+	KindClusterConfig = "cluster_config"
+
+	// MetaNameClusterName is the exact name of the singleton resource.
+	MetaNameClusterConfig = "cluster-config"
 
 	// KindClusterName is a type of configuration resource that contains the cluster name.
 	KindClusterName = "cluster_name"
@@ -130,6 +145,19 @@ const (
 
 	// KindAuthConnector allows access to OIDC and SAML connectors.
 	KindAuthConnector = "auth_connector"
+
+	// KindTunnelConection specifies connection of a reverse tunnel to proxy
+	KindTunnelConnection = "tunnel_connection"
+
+	// KindRemoteCluster represents remote cluster connected via reverse tunnel
+	// to proxy
+	KindRemoteCluster = "remote_cluster"
+
+	// KindIdenity is local on disk identity resource
+	KindIdentity = "identity"
+
+	// KindState is local on disk process state
+	KindState = "state"
 
 	// V3 is the third version of resources.
 	V3 = "v3"
@@ -160,7 +188,21 @@ const (
 
 	// VerbDelete is used to remove an object.
 	VerbDelete = "delete"
+
+	// VerbRotate is used to rotate certificate authorities
+	// used only internally
+	VerbRotate = "rotate"
 )
+
+func CollectOptions(opts []MarshalOption) (*MarshalConfig, error) {
+	var cfg MarshalConfig
+	for _, o := range opts {
+		if err := o(&cfg); err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+	return &cfg, nil
+}
 
 func collectOptions(opts []MarshalOption) (*MarshalConfig, error) {
 	var cfg MarshalConfig
@@ -176,6 +218,9 @@ func collectOptions(opts []MarshalOption) (*MarshalConfig, error) {
 type MarshalConfig struct {
 	// Version specifies particular version we should marshal resources with
 	Version string
+
+	// SkipValidation is used to skip schema validation.
+	SkipValidation bool
 }
 
 // GetVersion returns explicitly provided version or sets latest as default
@@ -199,6 +244,14 @@ func WithVersion(v string) MarshalOption {
 		default:
 			return trace.BadParameter("version '%v' is not supported", v)
 		}
+	}
+}
+
+// SkipValidation is used to disable schema validation.
+func SkipValidation() MarshalOption {
+	return func(c *MarshalConfig) error {
+		c.SkipValidation = true
+		return nil
 	}
 }
 
@@ -231,8 +284,9 @@ const MetadataSchema = `{
     "expires": {"type": "string"},
     "labels": {
       "type": "object",
+      "additionalProperties": false,
       "patternProperties": {
-         "^[a-zA-Z/.0-9_]$":  { "type": "string" }
+         "^[a-zA-Z/.0-9_*]+$":  { "type": "string" }
       }
     }
   }
@@ -291,7 +345,7 @@ type Resource interface {
 	GetName() string
 	// SetName sets the name of the resource
 	SetName(string)
-	// Expiry retuns object expiry setting
+	// Expiry returns object expiry setting
 	Expiry() time.Time
 	// SetExpiry sets object expiry
 	SetExpiry(time.Time)
@@ -321,7 +375,7 @@ func (m *Metadata) SetExpiry(expires time.Time) {
 	m.Expires = &expires
 }
 
-// Expires retuns object expiry setting.
+// Expires returns object expiry setting.
 func (m *Metadata) Expiry() time.Time {
 	if m.Expires == nil {
 		return time.Time{}
@@ -372,6 +426,8 @@ func ParseShortcut(in string) (string, error) {
 		return KindOIDCConnector, nil
 	case "saml":
 		return KindSAMLConnector, nil
+	case "github":
+		return KindGithubConnector, nil
 	case "user", "users":
 		return KindUser, nil
 	case "cert_authorities", "cas":
@@ -382,6 +438,8 @@ func ParseShortcut(in string) (string, error) {
 		return KindTrustedCluster, nil
 	case "cluster_authentication_preferences", "cap":
 		return KindClusterAuthPreference, nil
+	case "remote_cluster", "remote_clusters", "rc", "rcs":
+		return KindRemoteCluster, nil
 	}
 	return "", trace.BadParameter("unsupported resource: %v", in)
 }
@@ -418,7 +476,7 @@ func isDelimiter(r rune) bool {
 	return false
 }
 
-// Ref is a resource refernece
+// Ref is a resource reference
 type Ref struct {
 	Kind string
 	Name string
